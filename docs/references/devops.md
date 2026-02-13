@@ -13,7 +13,7 @@ Incident records, stored in the `incidents` table, are generated whenever a user
 The module provides a single function that returns in-memory tables.
 
 ```q
-([getInMemoryTables]): use `$"kx.demodatagen.devops"
+([getInMemoryTables]): use `kx.datagen.devops
 ```
 
 The CPU metrics are collected from midnight until the current query time (`.z.T`).

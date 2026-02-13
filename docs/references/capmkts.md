@@ -7,7 +7,7 @@ This module is designed to generate synthetic capital market data, including `tr
 The module provides two primary functions:
 
 ```q
-([getInMemoryTables; buildPersistedDB]): use `$"kx.demo-data-gen.capmkts"
+([getInMemoryTables; buildPersistedDB]): use `kx.datagen.capmkts
 ```
 
 To generate in-memory tables `trade`, `quote`, and `nbbo` along with metadata tables `master` and dictionary `exnames`, use the `getInMemoryTables` function:
