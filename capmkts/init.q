@@ -11,6 +11,14 @@ EXNAMES: ([A: "NYSE American"; B: "NASDAQ OMX BX"; C: "NYSE National"; D: "FINRA
   Q: "NASDAQ Stock Exchange"; V: "The Investors' Exchange"; W: "Chicago Broad Options Exchange";
   X: "NASDAQ OMX PSX"; Y: "Cboe BYX Exchange"; Z: "Cboe BZX Exchange"])
 
+/ Default parameters for data generation
+DEFAULTS: ([
+  exchopen: 09:30;   / exchange open time
+  exchclose: 16:00;  / exchange close time
+  quotesPerTrade: 10;     / number of quotes per trade
+  nbboPerTrade: 3
+  ]);      / number of nbbo per trade
+
 
 /utils
 PI:acos -1
@@ -123,7 +131,7 @@ makeDailyVolumes: {[dateNr:`j]
 
 generateTables: {[volumes:`J; prices; (quotesPerTrade:`j; nbboPerTrade:`j); (exchopen; exchclose); symNr:`j; dateidx:`j]
   (qx; qb; qa; qbb; qba; qp): batch[volumes[dateidx]; prices[;dateidx]; prices[; dateidx+1];  symNr];
-  r:asc (`time$exchopen)+floor (`time$exchclose-exchopen)*volprof count qx;
+  r:asc (`timespan$exchopen)+floor (`timespan$exchclose-exchopen)*volprof count qx;
   cx:volumes[dateidx]?quotesPerTrade+nbboPerTrade;
   cn:count n:where cx=0;
   sp:1=cn?20;
@@ -154,13 +162,10 @@ generateAndSave: {[dbpref:`C; dst:`s; generator; dates:`D; dateidx:`j]
 //                      and the second element is a dictionary with possible keys:
 //                        quotesPerTrade: number of quotes per trade (default 10),
 //                        nbboPerTrade:   number of nbbo per trade (default 3),
-getInMemoryTables: {[params]
+getInMemoryTables: ('[{[params]
   if[2<count params; '"Too many parameters passed to getInMemoryTables"];
   tradesPerDay: 1000;
-  p: ([exchopen: 09:30;   / exchange open time
-       exchclose: 16:00;  / exchange close time
-       quotesPerTrade: 10;     / number of quotes per trade
-       nbboPerTrade: 3]);      / number of nbbo per trade
+  p: DEFAULTS;
 
   if[not (::) ~ first params;
     tradesPerDay: first params;
@@ -172,7 +177,7 @@ getInMemoryTables: {[params]
   prices: makePrices 1;
   ({update sym: `g#sym from x} each generateTables[volumes; prices; p `quotesPerTrade`nbboPerTrade; p`exchopen`exchclose; symNr; 0]),
     (MASTER; EXNAMES)
-  } enlist ::;
+  }; enlist]);
 
 // @kind function
 // @fileoverview builds a date-partitioned trade/quote/nbbo database
@@ -189,17 +194,15 @@ getInMemoryTables: {[params]
 //                        segmentPattern: pattern for the segments, e.g. "/mnt/ssd{}/testdb"
 //                        quotesPerTrade: number of quotes per trade (default 10),
 //                        nbboPerTrade:   number of nbbo per trade (default 3),
-buildPersistedDB: {[params]
+buildPersistedDB: ('[{[params]
   if[3<count params; '"Too many parameters passed to buildPersistedDB"];
   if[(::) ~ first params;
     '"Destination directory must be provided as first parameter to buildPersistedDB"];
   dst: first params;
   tradesPerDay: 1000;
-  p: ([start: .z.D-31; end: .z.D-1;
-       exchopen: 09:30; exchclose: 16:00;
+  p: DEFAULTS, ([start: .z.D-31; end: .z.D-1;
        holidays: ("01.01"; "01.19"; "02.16"; "05.25"; "06.19"; "07.03"; "09.07"; "10.12"; "11.11"; "11.26"; "12.25");
-       segmentNr: 0; segmentPrefix: "/tmp/mnt/ssd{}/testdata";
-       quotesPerTrade: 10; nbboPerTrade: 3]);
+       segmentNr: 0; segmentPrefix: "/tmp/mnt/ssd{}/testdata"]);
   if[1 < count params;
     tradesPerDay: params 1;
     if[3=count params;
@@ -218,11 +221,11 @@ buildPersistedDB: {[params]
   dst: hsym `$dst;
   td: raze dbprefs generateAndSave[; dst; generator; dates; ]' til dateNr;
 
-  (` sv dst,`daily) set .Q.en[dst] td;
-  (` sv dst,`master) set .Q.en[dst] MASTER;
-  (` sv dst,`exnames) set EXNAMES;
+  .Q.dd[dst;`daily] set .Q.en[dst] td;
+  .Q.dd[dst;`master] set .Q.en[dst] MASTER;
+  .Q.dd[dst;`exnames] set EXNAMES;
   if[p `segmentNr; (` sv dst,`par.txt) 0: distinct dbprefs];
-  } enlist ::;
+  }; enlist]);
 
 
 export: ([getInMemoryTables; buildPersistedDB])

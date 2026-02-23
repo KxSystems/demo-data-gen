@@ -13,12 +13,13 @@ Now from anywhere you can import the `datagen` library.
 ```q
 q)([getInMemoryTables; buildPersistedDB]): use `kx.datagen.capmkts
 q)(trade; quote; nbbo; master; exnames): getInMemoryTables[]
-q)asc select sum size by exch: exnames ex from trade where date=last date
+q)asc select sum size by exch: exnames ex from trade where time within 10:00 10:30
 exch                                | size
-------------------------------------| ------
-"NASDAQ OMX PSX"                    | 49247
-"The Investors' Exchange"           | 51202
-"FINRA Alternative Display Facility"| 52043
+------------------------------------| ----
+"The Investors' Exchange"           | 36
+"Cboe EDGX Exchange"                | 64
+"Chicago Broad Options Exchange"    | 65
+"NASDAQ OMX BX"                     | 73
 ```
 
 Add the export to your `.bashrc` or equivalent to persist across sessions.
