@@ -11,14 +11,20 @@ EXNAMES: ([A: "NYSE American"; B: "NASDAQ OMX BX"; C: "NYSE National"; D: "FINRA
   Q: "NASDAQ Stock Exchange"; V: "The Investors' Exchange"; W: "Chicago Broad Options Exchange";
   X: "NASDAQ OMX PSX"; Y: "Cboe BYX Exchange"; Z: "Cboe BZX Exchange"])
 
+TRADEDON: (neg 1|count[MASTER]?count EXNAMES)?\:key EXNAMES
+
 / Default parameters for data generation
 DEFAULTS: ([
+  tradesPerDay: 1000;
   exchopen: 09:30;   / exchange open time
   exchclose: 16:00;  / exchange close time
   quotesPerTrade: 10;     / number of quotes per trade
   nbboPerTrade: 3
   ]);      / number of nbbo per trade
 
+DEFAULTS_PERSISTED: ([start: .z.D-31; end: .z.D-1;
+       holidays: ("01.01"; "01.19"; "02.16"; "05.25"; "06.19"; "07.03"; "09.07"; "10.12"; "11.11"; "11.26"; "12.25");
+       segmentNr: 0; segmentPattern: "/tmp/mnt/ssd{}/testdata"])
 
 /utils
 PI:acos -1
@@ -136,9 +142,9 @@ generateTables: {[volumes:`J; prices; (quotesPerTrade:`j; nbboPerTrade:`j); (exc
   cn:count n:where cx=0;
   sp:1=cn?20;
   s: MASTER `sym;
-  trade: ([]sym:s qx n;time:`s#shiv r n;price:qp n;size:vol cn;stop:sp;cond:cn?COND;ex:key[EXNAMES] qx n);
+  trade: ([]sym:s qx n;time:`s#shiv r n;price:qp n;size:vol cn;stop:sp;cond:cn?COND;ex:rand each TRADEDON qx n);
   cn:count n:where cx<quotesPerTrade;
-  quote: ([]sym:s qx n;time:`s#r n;bid:(qp-qb)n;ask:(qp+qa)n;bsize:vol cn;asize:vol cn;mode:cn?MODE;ex:key[EXNAMES] qx n);
+  quote: ([]sym:s qx n;time:`s#r n;bid:(qp-qb)n;ask:(qp+qa)n;bsize:vol cn;asize:vol cn;mode:cn?MODE;ex:rand each TRADEDON qx n);
   cn:count n:where cx>=quotesPerTrade;
   nbbo: ([]sym:s qx n;time:`s#r n;bid:(qp-qbb)n;ask:(qp+qba)n;bsize:vol cn;asize:vol cn);
   (trade; quote; nbbo)
@@ -154,26 +160,36 @@ generateAndSave: {[dbpref:`C; dst:`s; generator; dates:`D; dateidx:`j]
     low:min price,close:last price,price:sum price*size,sum size by sym from trade
   }
 
+processOptParam:{[allowedKeys;optparam]
+  if[.Q.ty[optparam] in "HIJ";
+    :([tradesPerDay: "j"$optparam])]; / numeric parameter interpreted as trades per day;];
+
+  if[99h = type optparam;
+    unknownParams: (key optparam) except allowedKeys;
+    if[count unknownParams; '"Unknown parameter(s): ", "," sv string unknownParams];
+    :optparam];
+
+  '"A numeric or a dictionary is expected as optional parameter";
+  }
+
+
 // @kind function
 // @fileoverview returns in-memory tables trade/quote/nbbo
-// @param params {list} optional parameters as a list of size one or two.
-//                      If a single-element list is provided, it is interpreted as the number of trades per day.
-//                      If a two-element list is provided, the first element is the number of trades per day
-//                      and the second element is a dictionary with possible keys:
+// @param params {list} optional parameters as a single-element list.
+//                      If a numeric is provided, it is interpreted as the number of trades per day.
+//                      if a dictionary is provided, then possible keys:
+//                        tradesPerDay:   number of trades per day.
+//                        exchopen:       exchange open time (default 09:30),
+//                        exchclose:      exchange close time (default 16:00),
 //                        quotesPerTrade: number of quotes per trade (default 10),
 //                        nbboPerTrade:   number of nbbo per trade (default 3),
 getInMemoryTables: ('[{[params]
-  if[2<count params; '"Too many parameters passed to getInMemoryTables"];
-  tradesPerDay: 1000;
+  if[1<count params; '"Too many parameters passed to getInMemoryTables"];
   p: DEFAULTS;
+  if[not (::) ~ first params; p,: processOptParam[key p; last params]];
 
-  if[not (::) ~ first params;
-    tradesPerDay: first params;
-    if[2=count params;
-      if[not 99h ~ type last params; '"Dictionary is expected as second parameter"];
-      p,: last params]];
   symNr: count MASTER;
-  volumes: floor (symNr*tradesPerDay*p[`quotesPerTrade]+p `nbboPerTrade) * makeDailyVolumes 1;
+  volumes: floor (symNr*p[`tradesPerDay]*p[`quotesPerTrade]+p `nbboPerTrade) * makeDailyVolumes 1;
   prices: makePrices 1;
   ({update sym: `g#sym from x} each generateTables[volumes; prices; p `quotesPerTrade`nbboPerTrade; p`exchopen`exchclose; symNr; 0]),
     (MASTER; EXNAMES)
@@ -182,9 +198,9 @@ getInMemoryTables: ('[{[params]
 // @kind function
 // @fileoverview builds a date-partitioned trade/quote/nbbo database
 // @param params {list} list of size between 1 and 3:
-//                      The first element is the root of the database to be created.
-//                      The second element, if provided, is the number of trades per day.
-//.                     The third element, if provided, is a dictionary with possible keys:
+//                     The first element is the root of the database to be created.
+//                     The second element, if provided, is a dictionary with possible keys:
+//                        tradesPerDay:   number of trades per day.
 //                        start:          begin date (default 31 days ago),
 //                        end:            end date (default yesterday),
 //                        exchopen:       exchange open time (default 09:30),
@@ -195,23 +211,16 @@ getInMemoryTables: ('[{[params]
 //                        quotesPerTrade: number of quotes per trade (default 10),
 //                        nbboPerTrade:   number of nbbo per trade (default 3),
 buildPersistedDB: ('[{[params]
-  if[3<count params; '"Too many parameters passed to buildPersistedDB"];
+  if[2<count params; '"Too many parameters passed to buildPersistedDB"];
   if[(::) ~ first params;
     '"Destination directory must be provided as first parameter to buildPersistedDB"];
   dst: first params;
-  tradesPerDay: 1000;
-  p: DEFAULTS, ([start: .z.D-31; end: .z.D-1;
-       holidays: ("01.01"; "01.19"; "02.16"; "05.25"; "06.19"; "07.03"; "09.07"; "10.12"; "11.11"; "11.26"; "12.25");
-       segmentNr: 0; segmentPrefix: "/tmp/mnt/ssd{}/testdata"]);
-  if[1 < count params;
-    tradesPerDay: params 1;
-    if[3=count params;
-      if[not 99h ~ type last params; '"Dictionary is expected as third parameter"];
-      p,: last params]];
+  p: DEFAULTS, DEFAULTS_PERSISTED;
+  if[1 < count params; p,: processOptParam[key p; last params]];
 
   dateNr: count dates: getDates[p`start; p`end; p`holidays];
   symNr: count MASTER;
-  volumes: floor (symNr*tradesPerDay*p[`quotesPerTrade]+p[`nbboPerTrade]) * makeDailyVolumes dateNr;
+  volumes: floor (symNr*p[`tradesPerDay]*p[`quotesPerTrade]+p[`nbboPerTrade]) * makeDailyVolumes dateNr;
   prices: makePrices dateNr;
 
   generator: generateTables[volumes; prices; p `quotesPerTrade`nbboPerTrade; p`exchopen`exchclose; symNr];

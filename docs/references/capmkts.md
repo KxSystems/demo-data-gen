@@ -65,6 +65,8 @@ date       sym  time                 price size stop cond ex bid   ask
 
 ## Parameters
 
+Optional parameters are expected as a dictionary, but if a single number is passed that it is interpreted as `tradesPerDay` parameter.
+
 ### Data Density/Volume
 
 You can adjust the data density (and overall data volume) by specifying the approximate number of trades per day. Note that the exact number depends on various factors, such as the number of instruments.
@@ -81,10 +83,10 @@ buildPersistedDB["/tmp/testdb"; 10000]
 
 ### Date Range (`start` and `end`)
 
-The `buildPersistedDB` function allows you to specify the start and end dates for the data to be generated. These dates are passed as part of a dictionary in the third parameter. For example, to generate one year of data:
+The `buildPersistedDB` function allows you to specify the start and end dates for the data to be generated. These dates are passed as part of a dictionary in the second parameter. For example, to generate one year of data:
 
 ```q
-buildPersistedDB["/tmp/testdb"; 10000; ([start: 2025.01.01; end: 2025.12.31])]
+buildPersistedDB["/tmp/testdb"; ([tradesPerDay: 10000; start: 2025.01.01; end: 2025.12.31])]
 ```
 
 ### Segmented Database
@@ -92,7 +94,7 @@ buildPersistedDB["/tmp/testdb"; 10000; ([start: 2025.01.01; end: 2025.12.31])]
 Segmented databases are also supported by `buildPersistedDB`, using the `segmentNr` and `segmentPattern` keys. For instance, to utilize four drives mounted at `/mnt/ssd0`, `/mnt/ssd1`, `/mnt/ssd2`, and `/mnt/ssd3`, you can use the following command:
 
 ```q
-buildPersistedDB["/tmp/testdb"; 10000; ([segmentNr: 4; segmentPattern: "/mnt/ssd{}/testdb"])]
+buildPersistedDB["/tmp/testdb"; ([segmentNr: 4; segmentPattern: "/mnt/ssd{}/testdb"])]
 ```
 
 This will distribute partitions across `/mnt/ssd0/testdb`, `/mnt/ssd1/testdb`, `/mnt/ssd2/testdb`, and `/mnt/ssd3/testdb`.
@@ -101,10 +103,14 @@ This will distribute partitions across `/mnt/ssd0/testdb`, `/mnt/ssd1/testdb`, `
 
 The following parameters can be customized using a dictionary passed to `getInMemoryTables` or `buildPersistedDB` functions. Default values are provided for convenience:
 
-- `exchopen` (default: `9:30`): The opening time of the exchange. No trades or quotes are generated before this time.
-- `exchclose` (default: `16:00`): The closing time of the exchange. No trades or quotes are generated after this time.
-- `quotesPerTrade` (default: `10`): The number of quotes generated per trade.
-- `nbboPerTrade` (default: `3`): The number of NBBO entries generated per trade.
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `tradesPerDay` | `1000` | The number of trades per day. |
+| `exchopen` | `9:30` | The opening time of the exchange. No trades or quotes are generated before this time. |
+| `exchclose` | `16:00` | The closing time of the exchange. No trades or quotes are generated after this time. |
+| `quotesPerTrade` | `10` | The number of quotes generated per trade. |
+| `nbboPerTrade` | `3` | The number of NBBO entries generated per trade. |
+
 
 In addition, `buildPersistedDB` accepts:
 
@@ -115,16 +121,16 @@ In addition, `buildPersistedDB` accepts:
 To customize the settings, you can pass a dictionary as shown below:
 
 ```q
-(trade; quote; nbbo; master: exnames): getInMemoryTables[100000; ([exchopen: 7:00; exchclose: 18:00; quotesPerTrade:20; nbboPerTrade:6])]
+(trade; quote; nbbo; master: exnames): getInMemoryTables ([tradesPerDay: 10000; exchopen: 7:00; exchclose: 18:00; quotesPerTrade:20; nbboPerTrade:6])
 ```
 
 or
 
 ```q
-buildPersistedDB["/tmp/testdb"; 5000; ([quotesPerTrade: 3; nbboPerTrade: 5])]
+buildPersistedDB["/tmp/testdb"; ([tradesPerDay: 5000; quotesPerTrade: 3; nbboPerTrade: 5])]
 ```
 
 ## Resource requirements
 
-- The kdb+ objects (tables and dictionary) generated with the default getInMemoryTables parameters require 1.3 MB of memory.
+- The kdb+ objects (tables and dictionary) generated with the default `getInMemoryTables` parameters require 1.3 MB of memory.
 - Persisted data generated with the default parameters occupies 377 MB of disk space.

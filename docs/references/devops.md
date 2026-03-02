@@ -44,7 +44,7 @@ To reduce the number of computers to 500 and increase the reporting frequency to
 (master; computer; incidents): getInMemoryTables ([compNr: 500; frequency: 00:00:01])
 ```
 
-To generate data for a specific time range, such as between 8:00 AM and 10:00 AM, use:
+YTo generate data for a specific time range, such as between 8:00 AM and 10:00 AM, use:
 
 ```q
 (master; computer; incidents): getInMemoryTables ([start: 08:00; frequency: 10:00])
